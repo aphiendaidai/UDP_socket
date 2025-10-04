@@ -1,12 +1,12 @@
 package Client;
 
 import java.awt.BorderLayout;
-import java.awt.Desktop;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.io.File;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -250,6 +250,7 @@ public class MailClient extends JFrame {
         }
     }
     
+    
     private void openEmail(String filename) {
         if (currentUser == null) {
             JOptionPane.showMessageDialog(this, "Vui lòng đăng nhập trước!");
@@ -261,27 +262,25 @@ public class MailClient extends JFrame {
             return;
         }
         
-        File emailFile = new File(MAIL_DIR, currentUser + "/" + filename);
+        String response = sendRequest("READ|" + currentUser + "|" + filename);
+        String[] parts = response.split("\\|", 2);
         
-        if (!emailFile.exists()) {
-            JOptionPane.showMessageDialog(this, "File không tồn tại!", "Lỗi", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        
-        try {
-            // Mở file bằng ứng dụng mặc định của hệ thống
-            if (Desktop.isDesktopSupported()) {
-                Desktop desktop = Desktop.getDesktop();
-                if (emailFile.exists()) {
-                    desktop.open(emailFile);
-                }
-            } else {
-                JOptionPane.showMessageDialog(this, "Hệ thống không hỗ trợ mở file tự động!", "Lỗi", JOptionPane.ERROR_MESSAGE);
-            }
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Không thể mở file: " + e.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+        if (parts[0].equals("SUCCESS")) {
+            // Hiển thị nội dung email trong dialog
+            JTextArea emailContent = new JTextArea(parts[1]);
+            emailContent.setEditable(false);
+            emailContent.setFont(new Font("Monospaced", Font.PLAIN, 12));
+            emailContent.setCaretPosition(0);
+            
+            JScrollPane scrollPane = new JScrollPane(emailContent);
+            scrollPane.setPreferredSize(new Dimension(600, 400));
+            
+            JOptionPane.showMessageDialog(this, scrollPane, "Email: " + filename, JOptionPane.PLAIN_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, parts[1], "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
     }
+
     
     private String sendRequest(String request) {
         try {
