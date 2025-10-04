@@ -70,6 +70,8 @@ public class MailServer{
                     return login(parts[1], parts[2]);
                 case "SEND":
                     return sendEmail(parts[1], parts[2], parts[3], parts[4]);
+                case "READ":
+                    return readEmail(parts[1], parts[2]);
                 default:
                     return "ERROR|Lệnh không hợp lệ";
             }
@@ -166,6 +168,30 @@ public class MailServer{
 
         return "SUCCESS|Gửi email thành công!";
     }
+    
+    private String readEmail(String username, String filename) {
+        File emailFile = new File(MAIL_DIR, username + "/" + filename);
+        
+        if (!emailFile.exists()) {
+            return "ERROR|File không tồn tại!";
+        }
+        
+        try {
+            StringBuilder content = new StringBuilder("SUCCESS|");
+            BufferedReader reader = new BufferedReader(new FileReader(emailFile));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line).append("\n");
+            }
+            reader.close();
+            
+            System.out.println("✓ User " + username + " đọc email: " + filename);
+            return content.toString();
+        } catch (Exception e) {
+            return "ERROR|Không thể đọc file: " + e.getMessage();
+        }
+    }
+    
 
     private void sendResponse(String response, InetAddress address, int port) {
         try {
