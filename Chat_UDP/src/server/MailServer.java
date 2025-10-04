@@ -1,6 +1,8 @@
 package server;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.PrintWriter;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -63,9 +65,9 @@ public class MailServer{
         try {
             switch (command) {
                 case "CREATE":
-                    return createAccount(parts[1]);
+                    return createAccount(parts[1], parts[2]);
                 case "LOGIN":
-                    return login(parts[1]);
+                    return login(parts[1], parts[2]);
                 case "SEND":
                     return sendEmail(parts[1], parts[2], parts[3], parts[4]);
                 default:
@@ -76,7 +78,7 @@ public class MailServer{
         }
     }
 
-    private String createAccount(String username) {
+    private String createAccount(String username, String password) {
         File userDir = new File(MAIL_DIR, username);
         
         if (userDir.exists()) {
@@ -85,7 +87,15 @@ public class MailServer{
 
         userDir.mkdir();
         
-        // Tạo file new_email.txt
+        // Lưu password vào file
+        File passwordFile = new File(userDir, ".password");
+        try (PrintWriter writer = new PrintWriter(passwordFile, "UTF-8")) {
+            writer.println(password);
+        } catch (Exception e) {
+            return "ERROR|Không thể lưu mật khẩu";
+        }
+        
+        // Tạo file new_email.txt với nội dung chào mừng
         File welcomeFile = new File(userDir, "new_email.txt");
         try (PrintWriter writer = new PrintWriter(welcomeFile, "UTF-8")) {
             writer.println("Thank you for using this service. We hope that you will feel comfortable........");
@@ -93,27 +103,42 @@ public class MailServer{
             return "ERROR|Không thể tạo file chào mừng";
         }
 
+        System.out.println("✓ Đã tạo tài khoản: " + username);
         return "SUCCESS|Tạo tài khoản thành công!";
     }
-
-    private String login(String username) {
+    private String login(String username, String password) {
         File userDir = new File(MAIL_DIR, username);
         
         if (!userDir.exists()) {
             return "ERROR|Tài khoản không tồn tại!";
         }
 
+        // Kiểm tra password
+        File passwordFile = new File(userDir, ".password");
+        try (BufferedReader reader = new BufferedReader(new FileReader(passwordFile))) {
+            String savedPassword = reader.readLine();
+            if (!password.equals(savedPassword)) {
+                return "ERROR|Mật khẩu không đúng!";
+            }
+        } catch (Exception e) {
+            return "ERROR|Không thể đọc mật khẩu";
+        }
+
         File[] files = userDir.listFiles();
         if (files == null || files.length == 0) {
+            System.out.println("✓ User " + username + " đăng nhập (hộp thư trống)");
             return "SUCCESS|";
         }
 
         StringBuilder fileList = new StringBuilder("SUCCESS|");
         for (File file : files) {
-            fileList.append(file.getName()).append(";");
+            // Không gửi file .password về client
+            if (!file.getName().equals(".password")) {
+                fileList.append(file.getName()).append(";");
+            }
         }
-        
-        System.out.println("✓ User " + username + " đăng nhập (" + files.length + " email)");
+
+        System.out.println("✓ User " + username + " đăng nhập (" + (files.length - 1) + " email)");
         return fileList.toString();
     }
 
