@@ -1,6 +1,7 @@
 package Client;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -13,6 +14,7 @@ import java.net.InetAddress;
 
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
+import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -25,20 +27,20 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 
-public class MailClient extends JFrame {
+public class MainClientt extends JFrame {
     private JTextField usernameField, toField, subjectField;
-    private JTextArea contentArea, emailListArea;
+    private JTextArea contentArea;
     private JButton createBtn, loginBtn, sendBtn, refreshBtn;
     private JPasswordField passwordField;
     private DatagramSocket socket;
-    private static final String SERVER_HOST = "127.0.0.1";
+    private static final String SERVER_HOST = "localhost";
     private static final int SERVER_PORT = 9999;
     private String currentUser = null;
-    private static final String MAIL_DIR = "mail_storage";
 
-    public MailClient() {
-        setTitle("Mail Client - UDP");
+    public MainClientt() {
+        setTitle("Mail Client - Real SMTP");
         setSize(700, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
@@ -88,7 +90,7 @@ public class MailClient extends JFrame {
 
         tabbedPane.addTab("Đăng nhập", authPanel);
 
-        // Tab 2: Gửi email
+        // Tab 2: Gửi email THẬT
         JPanel sendPanel = new JPanel(new BorderLayout(5, 5));
         JPanel sendFormPanel = new JPanel(new GridBagLayout());
         gbc = new GridBagConstraints();
@@ -96,9 +98,10 @@ public class MailClient extends JFrame {
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         gbc.gridx = 0; gbc.gridy = 0;
-        sendFormPanel.add(new JLabel("Đến:"), gbc);
+        sendFormPanel.add(new JLabel("Đến (Email):"), gbc);
         gbc.gridx = 1;
         toField = new JTextField(20);
+        toField.setToolTipText("Nhập email thật: example@gmail.com");
         sendFormPanel.add(toField, gbc);
 
         gbc.gridx = 0; gbc.gridy = 1;
@@ -108,14 +111,20 @@ public class MailClient extends JFrame {
         sendFormPanel.add(subjectField, gbc);
 
         gbc.gridx = 0; gbc.gridy = 2;
-        sendFormPanel.add(new JLabel("Nội dung:"), gbc);
+        JLabel noteLabel = new JLabel("<html><b>Lưu ý:</b> Email sẽ được gửi thật qua SMTP!</html>");
+        noteLabel.setForeground(Color.RED);
+        gbc.gridwidth = 2;
+        sendFormPanel.add(noteLabel, gbc);
 
         sendPanel.add(sendFormPanel, BorderLayout.NORTH);
 
         contentArea = new JTextArea(10, 30);
         sendPanel.add(new JScrollPane(contentArea), BorderLayout.CENTER);
 
-        sendBtn = new JButton("Gửi Email");
+        sendBtn = new JButton("Gửi Email Thật");
+        sendBtn.setBackground(new Color(34, 139, 34));
+        sendBtn.setForeground(Color.WHITE);
+        sendBtn.setFont(new Font("Arial", Font.BOLD, 14));
         sendBtn.addActionListener(e -> sendEmail());
         sendPanel.add(sendBtn, BorderLayout.SOUTH);
 
@@ -124,13 +133,11 @@ public class MailClient extends JFrame {
         // Tab 3: Hộp thư
         JPanel inboxPanel = new JPanel(new BorderLayout(5, 5));
         
-        // List để hiển thị danh sách email
         DefaultListModel<String> emailListModel = new DefaultListModel<>();
         JList<String> emailList = new JList<>(emailListModel);
         emailList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         inboxPanel.add(new JScrollPane(emailList), BorderLayout.CENTER);
         
-        // Panel chứa các button
         JPanel buttonPanel = new JPanel(new FlowLayout());
         
         refreshBtn = new JButton("Làm mới");
@@ -169,7 +176,6 @@ public class MailClient extends JFrame {
         }
     }
 
-    
     private void login() {
         String username = usernameField.getText().trim();
         String password = new String(passwordField.getPassword()).trim();
@@ -184,12 +190,13 @@ public class MailClient extends JFrame {
         
         if (parts[0].equals("SUCCESS")) {
             currentUser = username;
-            setTitle("Mail Client - " + currentUser);
-            JOptionPane.showMessageDialog(this, "Đăng nhập thành công!");
+            setTitle("Mail Client - " + currentUser + " (SMTP Enabled)");
+            JOptionPane.showMessageDialog(this, "Đăng nhập thành công!\n\nBạn có thể gửi email đến bất kỳ địa chỉ nào!");
         } else {
             JOptionPane.showMessageDialog(this, parts[1], "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
     }
+
     private void sendEmail() {
         if (currentUser == null) {
             JOptionPane.showMessageDialog(this, "Vui lòng đăng nhập trước!");
@@ -205,27 +212,72 @@ public class MailClient extends JFrame {
             return;
         }
 
-        String request = "SEND|" + currentUser + "|" + to + "|" + subject + "|" + content;
-        String response = sendRequest(request);
-        String[] parts = response.split("\\|", 2);
-        
-        if (parts[0].equals("SUCCESS")) {
-            JOptionPane.showMessageDialog(this, parts[1]);
-            toField.setText("");
-            subjectField.setText("");
-            contentArea.setText("");
-        } else {
-            JOptionPane.showMessageDialog(this, parts[1], "Lỗi", JOptionPane.ERROR_MESSAGE);
+        // Kiểm tra định dạng email
+        if (!to.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
+            JOptionPane.showMessageDialog(this, 
+                "Địa chỉ email không hợp lệ!\nVí dụ: user@gmail.com", 
+                "Lỗi", 
+                JOptionPane.ERROR_MESSAGE);
+            return;
         }
-    }
 
-//    private void refreshInbox() {
-//        if (currentUser == null) {
-//            JOptionPane.showMessageDialog(this, "Vui lòng đăng nhập trước!");
-//            return;
-//        }
-//        login();
-//    }
+        // Xác nhận gửi
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "Bạn có chắc muốn gửi email THẬT đến:\n" + to + "?",
+            "Xác nhận gửi email",
+            JOptionPane.YES_NO_OPTION);
+        
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        // Hiển thị loading
+        JDialog loadingDialog = new JDialog(this, "Đang gửi...", true);
+        JLabel loadingLabel = new JLabel("Đang gửi email, vui lòng đợi...", JLabel.CENTER);
+        loadingDialog.add(loadingLabel);
+        loadingDialog.setSize(300, 100);
+        loadingDialog.setLocationRelativeTo(this);
+
+        SwingWorker<String, Void> worker = new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() {
+                String request = "SEND|" + currentUser + "|" + to + "|" + subject + "|" + content;
+                return sendRequest(request);
+            }
+
+            @Override
+            protected void done() {
+                loadingDialog.dispose();
+                try {
+                    String response = get();
+                    String[] parts = response.split("\\|", 2);
+                    
+                    if (parts[0].equals("SUCCESS")) {
+                        JOptionPane.showMessageDialog(MainClientt.this, 
+                            parts[1], 
+                            "Thành công", 
+                            JOptionPane.INFORMATION_MESSAGE);
+                        toField.setText("");
+                        subjectField.setText("");
+                        contentArea.setText("");
+                    } else {
+                        JOptionPane.showMessageDialog(MainClientt.this, 
+                            parts[1], 
+                            "Lỗi", 
+                            JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (Exception e) {
+                    JOptionPane.showMessageDialog(MainClientt.this, 
+                        "Lỗi: " + e.getMessage(), 
+                        "Lỗi", 
+                        JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        };
+
+        worker.execute();
+        loadingDialog.setVisible(true);
+    }
 
     private void refreshInbox(DefaultListModel<String> emailListModel) {
         if (currentUser == null) {
@@ -249,8 +301,7 @@ public class MailClient extends JFrame {
             }
         }
     }
-    
-    
+
     private void openEmail(String filename) {
         if (currentUser == null) {
             JOptionPane.showMessageDialog(this, "Vui lòng đăng nhập trước!");
@@ -266,7 +317,6 @@ public class MailClient extends JFrame {
         String[] parts = response.split("\\|", 2);
         
         if (parts[0].equals("SUCCESS")) {
-            // Hiển thị nội dung email trong dialog
             JTextArea emailContent = new JTextArea(parts[1]);
             emailContent.setEditable(false);
             emailContent.setFont(new Font("Monospaced", Font.PLAIN, 12));
@@ -281,7 +331,6 @@ public class MailClient extends JFrame {
         }
     }
 
-    
     private String sendRequest(String request) {
         try {
             byte[] sendData = request.getBytes();
@@ -301,7 +350,7 @@ public class MailClient extends JFrame {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            new MailClient().setVisible(true);
+            new MainClientt().setVisible(true);
         });
     }
 }
